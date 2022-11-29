@@ -1,6 +1,5 @@
 (ns atomist.schema-report
   (:require
-   [atomist.datalog.schema :as schema]
    [atomist.datalog.core :as core]
    [babashka.fs :as fs]
    [clojure.data :as data]

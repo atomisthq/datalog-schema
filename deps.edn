@@ -1,6 +1,7 @@
 {:deps
   {org.clojure/clojure {:mvn/version "1.11.1"}
-   babashka/process {:mvn/version "0.2.9"}}
+   babashka/process {:mvn/version "0.2.9"}
+   rewrite-clj/rewrite-clj {:mvn/version "1.1.45"}}
  :aliases
  {:build {:ns-default build
           :deps {io.github.clojure/tools.build {:git/tag "v0.8.3" :git/sha "0d20256c40b5a6b6adbcbdf7d0c52cf9e22e994d"}}}

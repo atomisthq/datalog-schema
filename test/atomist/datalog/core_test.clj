@@ -1,8 +1,31 @@
 (ns atomist.datalog.core-test
   (:require
-    [clojure.pprint :as pprint]
-    [atomist.datalog.core :refer [check]]
-    [clojure.edn :as clojure.edn]))
+   [clojure.pprint :as pprint]
+   [atomist.datalog.core :refer [check report]]
+   [atomist.datalog.schema :as schema]
+   [clojure.spec.alpha :as spec]
+   [clojure.test :as t]
+   [clojure.edn :as clojure.edn]))
+
+(t/deftest subscription-report
+  (t/is
+   (=
+    (report
+     (spec/conform
+      ::schema/query
+      (clojure.edn/read-string (slurp "/Users/slim/atmhq/docker-capability/datalog/subscription/find-new-official-images-tags-schedule.edn"))))
+    '{:attributes
+      #{:docker.tag/name
+        :docker.repository/host
+        :skill-id
+        :atomist.skill/team-id
+        :db/id
+        :atomist.skill/id
+        :docker.tag/repository
+        :docker.repository/repository
+        :docker.repository/last-checked-at},
+      :rules #{map-value schedule-tx string-match},
+      :functions #{atomist/older? missing?}})))
 
 (comment
   (pprint/pprint (check {} ""))
@@ -34,5 +57,3 @@
 ; longest in is 9 0 1 1
   (pprint/pprint (check {} '[:find ?a :in $ $b % ?ctx :where (tx-attribute-value ?a :a/b ?b)])))
 
-(comment
-  (def conformed (second (check {} (clojure.edn/read-string (slurp "/Users/slim/atmhq/docker-capability/datalog/subscription/find-new-official-images-tags-schedule.edn"))))))

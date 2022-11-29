@@ -4,7 +4,8 @@
    [babashka.fs]
    [clojure.edn]
    [clojure.spec.alpha :as s]
-   [clojure.string :as string]))
+   [clojure.string :as string]
+   [rewrite-clj.zip :as z]))
 
 (s/def ::attributes (s/coll-of keyword?))
 (s/def ::rules (s/coll-of string?))
@@ -179,9 +180,17 @@
      :end {:line n :character (count line)}}
     (range-all s)))
 
-(defn- edn-location [s edn via in]
-  (range-all s))
+(defn shift-zipper-right [zloc n]
+  (last (take (+ n 1) (iterate z/right (z/down zloc)))))
 
+(defn- edn-location [s in]
+  (let [zloc (z/of-string s {:track-position? true})
+        [row column] (z/position (reduce shift-zipper-right zloc in))
+        r (- row 1) ]
+    {:start {:line r :character column}
+     :end {:line r :character (count (nth (string/split-lines s) r))}}))
+
+#_:clj-kondo/ignore
 (defn diagnostics [s]
   (try
     (let [edn (clojure.edn/read-string s)
@@ -203,12 +212,14 @@
                    (->> (-> checked :data :clojure.spec.alpha/problems)
                         (map (fn [{:keys [path pred val via in]}]
                                ; path pred val are always set - via and in may be nil
-                               {:message (format "invalid datalog %s - failed: %s for %s" path pred val)
-                                :range (edn-location s edn via in)}))
+                               ; in is vector of ints jumping to the right part of the edn data structure
+                               ; via is a vector
+                               {:message (format "tried predicate %s on value %s at %s"  pred val (last path))
+                                :range (edn-location s in)}))
                         (into [])))
         [{:message "unrecognized"
-          :range (range-all s) }]))
-    (catch Throwable ex 
+          :range (range-all s)}]))
+    (catch Throwable ex
       (println ex)
       [{:message "invalid edn"
         :range (range-all s)}])))

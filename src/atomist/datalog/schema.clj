@@ -1,7 +1,5 @@
 (ns atomist.datalog.schema
   (:require
-   [babashka.fs]
-   [clojure.edn]
    [clojure.spec.alpha :as s]))
 
 (s/def ::in-clause (s/cat :in #(= :in %)
