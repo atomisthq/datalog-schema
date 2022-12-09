@@ -128,10 +128,10 @@
                (apply merge))))
       {})))
 
-(s/def ::valid #{:valid :invalid :invalid-schema})
+(s/def ::status #{:valid :invalid :invalid-schema})
 (s/def ::message string?)
-(s/def ::check  (s/keys :req-un [::valid ::message]
-                        :opt-un [::conformed ::report ::atribute-report ::data]))
+(s/def ::check  (s/keys :req-un [::status ::message]
+                        :opt-un [::conformed ::report ::attribute-report ::data]))
 
 (defn check
   "check datalog edn

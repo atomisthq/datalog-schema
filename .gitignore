@@ -1,2 +1,8 @@
 /.clj-kondo/
 /.nrepl-port
+/advisory.md
+/atomist.md
+/deploy.md
+/sbom.md
+/git.md
+/docker.md

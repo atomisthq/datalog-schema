@@ -2,20 +2,20 @@
   (:require
    [atomist.datalog.core :as core]
    [babashka.fs :as fs]
-   [clojure.data :as data]
+   [babashak.process :as process]
    [clojure.edn :as edn]
-   [clojure.pprint :refer [pprint]]
    [clojure.string]
    [clojure.spec.alpha :as s]))
 
 (def sbom-namespaces #{"artifact" "package" "project" "sbom"})
 (def atomist-namespaces #{"atomist"})
 (def deployment-namespaces #{"check" "deployment" "image" "linking"})
-(def docker-namespaces #{"docker" "ingestion" "oci"})
-(def git-namespaces #{"git" "email" "github" "sarif" "team" "user"})
+(def docker-namespaces #{"docker.image" "docker.manifest-list" "docker.platform" "docker.repository" "docker.tag" "docker.registry" "ingestion" "oci"})
+(def git-namespaces #{"docker.file" "git" "email" "github" "sarif" "team" "user"})
 (def advisory-namespaces #{"vulnerability"})
 
-(def namespaces-to-remove #{"atomist"
+(def namespaces-to-remove #{"schema"
+                            "atomist"
                             "analysis.discovery"
                             "analysis"
                             "analysis.discovery.source"
@@ -49,7 +49,37 @@
                             "falco"
                             "falco.alert"
                             "vulnerability.cpe"
-                            "vulnerability.cve.baseline"})
+                            "vulnerability.cve.baseline"
+                            ;; I think this is okay because there's no private data here
+                            "vulnerability.cve"})
+
+(def current-enums
+  #{:sbom/state
+    :check/conclusion
+    :image.recorded/status
+    :vulnerability/state
+    :vulnerability.report/state
+    :git.ref/type
+    :github.checkrun/conclusion
+    :github.checkrun/status
+    :github.checksuite/action
+    :github.checksuite/conclusion
+    :github.checksuite/status
+    :sarif.result/kind
+    :sarif.result/level
+    :docker.image/link-state
+    :docker.registry/type
+    :docker.repository/type
+    :vulnerability.advisory/state})
+
+(def private-attributes
+  #{:docker.file/path
+    ;; add back when used`
+    :project/effective-dependencies
+    ;; add back when used`
+    :artifact/package
+    :package.dependency/dependencies
+    :vulnerability.cwe/url})
 
 (def atomisthq-skills #{"docker-capability"
                         "dockerhub-internal-integration"
@@ -116,8 +146,8 @@
   (->> (:attributes schema-edn)
        (map (fn [entry]
               (if (:db/ident entry)
-                [(:db/ident entry) (:db/doc entry)]
-                [(first entry) (-> entry second :db/doc)])))
+                [(:db/ident entry) entry]
+                [(first entry) (-> entry second)])))
        (into {})))
 
 (defn filter-entities
@@ -148,7 +178,6 @@
 (s/def ::entities (s/coll-of (s/cat :skill-name string?
                                     :file-name string?
                                     :map (s/map-of keyword? (s/map-of keyword? (s/coll-of keyword?))))))
-
 (defn check-entities
   " return ::entities"
   []
@@ -161,14 +190,7 @@
              (filter-entities (edn/read-string (slurp (str f))))]
             (catch Throwable _ [f :exception]))))))
 
-(comment
-  ;; returns set of all current entities
-  (->> (check-entities)
-       (mapcat (fn [[_ _ x]] (keys x)))
-       (sort-by #(str (namespace %) (name %)))
-       (into [])))
-
-(s/def ::check-schema (s/map-of keyword? (s/cat :doc any? :schema-file string?)))
+(s/def ::check-schema (s/map-of keyword? (s/cat :schema any? :schema-file string?)))
 (defn check-schema
   " returns ::check-schema"
   []
@@ -189,8 +211,12 @@
 (comment
   (s/valid? ::check-schema (check-schema)))
 
+(s/def ::check (s/coll-of (s/cat :skill-name string?
+                                 :file-name string?
+                                 :data any?)))
 (defn check
-  "check all known datalog subscriptions and queries"
+  "check all known datalog subscriptions and queries
+    returns ::check (attribute data used by subscriptions and queries) "
   [& _]
   (->>
    (for [s (concat
@@ -204,11 +230,12 @@
           (try
             [(skill-name f)
              (str (.getFileName f))
-             (let [[status s] (core/check (edn/read-string (slurp (.toString f))))]
+             (let [{:keys [status report data]} (core/check {} (edn/read-string (slurp (.toString f))))]
                (case status
-                 :conformed (core/report s)
-                 :invalid (pr-str s)))]
+                 :valid report
+                 :invalid (pr-str data)))]
             (catch Throwable _ [f :exception]))))))
+
 
 (defn fix-back-ref-keyword [k]
   (if (and (namespace k) (.startsWith (name k) "_"))
@@ -218,81 +245,45 @@
 (defn add-sources [source m coll]
   (reduce #(update %1 %2 (fnil conj []) source) m coll))
 
-;; ===================================
-(comment
-  (def checked-subscriptions (check {}))
-  (def checked-attributes (->> (check-schema)
-                               (filter (complement (fn [[k _]] (namespaces-to-remove (namespace k)))))
-                               (into {})))
+(defn checked-attribute-has-type? [[_ [{:db/keys [valueType]}]]] valueType)
+(defn checked-attribute-is-ref? [[k [{:db/keys [valueType]}]]] (and (= valueType :db.type/ref) (not (current-enums k))))
 
-  ; attributes rules and function map
-  (def reverse-index
-    (->> checked-subscriptions
-         (reduce
-          (fn [agg [skill subscription {:keys [attributes rules functions]}]]
-            (let [source (format "%s/%s" skill subscription)
-                  add (partial add-sources source)]
-              (-> agg
-                  (update :attributes (fnil add {}) (->> attributes (map fix-back-ref-keyword)))
-                  (update :rules (fnil add {}) rules)
-                  (update :functions (fnil add {}) functions))))
-          {})))
+(defn entity-for-attribute [k]
+  (println "check " k)
+  (try
+    (-> (clojure.edn/read-string
+         (:out (deref (process/process ["bb" "cli" "q" "--team" "AQ1K5FIKA"
+                                        "--query"
+                                        (pr-str [:find
+                                                 '(distinct ?from-type)
+                                                 :in '$ '$b '% '?ctx
+                                                 :where
+                                                 ['?from k '_]
+                                                 ['?from :schema/entity-type '?from-type]])
+                                        "--token"
+                                        (slurp "/Users/slim/.atomist/bb.jwt")]
+                                       {:out :string :err :string :dir "/Users/slim/atmhq/bb_scripts"}))))
+        first
+        first)
+    (catch Throwable t (println "failed " t))))
 
-  ; compare schema attributes to the subscription and attributes
-  (let [[current-schema-only used-only both] (data/diff
-                                              (into #{} (keys checked-attributes))
-                                              (into #{} (keys (:attributes reverse-index))))]
-    (println "all attributes" (count checked-attributes))
-    (println "both: " (count both))
-    (println "not-used:  " (count current-schema-only))
-    (println "only-found: " (count used-only))
-    (pprint current-schema-only)
-    (pprint both)
-    (pprint used-only))
+(defn distinct-refs [k]
+  (println "check " k)
+  (try
+    (-> (clojure.edn/read-string
+         (:out (deref (process/process ["bb" "cli" "q" "--team" "AQ1K5FIKA"
+                                        "--query"
+                                        (pr-str [:find
+                                                 '(distinct ?from-type)
+                                                 '(distinct ?to-type)
+                                                 :in '$ '$b '% '?ctx
+                                                 :where
+                                                 ['?from k '?to]
+                                                 ['?from :schema/entity-type '?from-type]
+                                                 ['?to :schema/entity-type '?to-type]])
+                                        "--token"
+                                        (slurp "/Users/slim/.atomist/bb.jwt")]
+                                       {:out :string :err :string :dir "/Users/slim/atmhq/bb_scripts"}))))
+        first)
+    (catch Throwable t (println "failed " t))))
 
-  ; print counts by type
-  (doseq [s [docker-namespaces sbom-namespaces git-namespaces advisory-namespaces deployment-namespaces atomist-namespaces]]
-    (->> (keys checked-attributes)
-         (filter (fn [k] (some #(and
-                                 (namespace k)
-                                 (.startsWith (namespace k) %)) s)))
-         (count)
-         (println)))
-
-  (spit "attributes.md"
-        (->> (merge
-              (->> (keys checked-attributes)
-                   (map (fn [k] [k []]))
-                   (into {}))
-              (:attributes reverse-index))
-             (seq)
-             (sort-by first)
-             (filter #(-> % first namespace))
-             (filter (complement #(namespaces-to-remove (-> % first namespace))))
-             (map (fn [[k coll]]
-                    (format "| `%s` | %s | %s | %s |"
-                            k
-                            (-> checked-attributes (get k) first)
-                            (-> checked-attributes (get k) second)
-                            (->> coll (interpose "<br>") (apply str)))))
-             (interpose "\n")
-             (apply str)
-             ((fn [s] (format "| attribute | documentation | defined-by | used-by |\n| :---- | :----- | :----- | :----- |\n%s" s)))))
-
-  (spit "rules.md"
-        (->> (seq (:rules reverse-index))
-             (sort-by first)
-             (map (fn [[k coll]]
-                    (format "| `%s` | %s |" k (->> coll (interpose "<br>") (apply str)))))
-             (interpose "\n")
-             (apply str)
-             ((fn [s] (format "| rule | sources |\n| :---- | :----- |\n%s" s)))))
-
-  (spit "functions.md"
-        (->> (seq (:functions reverse-index))
-             (sort-by first)
-             (map (fn [[k coll]]
-                    (format "| `%s` | %s |" k (->> coll (interpose "<br>") (apply str)))))
-             (interpose "\n")
-             (apply str)
-             ((fn [s] (format "| function | sources |\n| :---- | :----- |\n%s" s))))))
