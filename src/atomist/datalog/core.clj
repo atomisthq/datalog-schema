@@ -183,12 +183,21 @@
 (defn shift-zipper-right [zloc n]
   (last (take (+ n 1) (iterate z/right (z/down zloc)))))
 
+(defn skip-metadata-node [zloc]
+  (if (= :meta (:tag (z/node zloc)))
+    (-> zloc
+        z/down
+        z/right)
+    zloc))
+
 (defn- edn-location [s in]
-  (let [zloc (z/of-string s {:track-position? true})
-        [row column] (z/position (reduce shift-zipper-right zloc in))
-        r (- row 1) ]
-    {:start {:line r :character column}
-     :end {:line r :character (count (nth (string/split-lines s) r))}}))
+  (let [zloc (skip-metadata-node (z/of-string s {:track-position? true}))
+        start-loc (reduce shift-zipper-right zloc in)
+        end-loc (z/next start-loc)
+        [r1 c1] (z/position start-loc)
+        [r2 c2] (z/position end-loc)]
+    {:start {:line (dec r1) :character c1}
+     :end {:line (dec r2) :character c2}}))
 
 #_:clj-kondo/ignore
 (defn diagnostics [s]
@@ -220,7 +229,13 @@
         [{:message "unrecognized"
           :range (range-all s)}]))
     (catch Throwable ex
-      (println ex)
       [{:message "invalid edn"
         :range (range-all s)}])))
+
+(comment
+  (def edn-string-with-metadata (slurp "/Users/slim/atmhq/bb_scripts/datalog/public-images.edn"))
+  (def r (z/of-string edn-string-with-metadata {:track-position? true}))
+  (check {} (clojure.edn/read-string edn-string-with-metadata))
+  (diagnostics edn-string-with-metadata)
+  (z/node r))
 

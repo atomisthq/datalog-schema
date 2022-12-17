@@ -2,7 +2,7 @@
   (:require
    [atomist.datalog.core :as core]
    [babashka.fs :as fs]
-   [babashak.process :as process]
+   [babashka.process :as process]
    [clojure.edn :as edn]
    [clojure.string]
    [clojure.spec.alpha :as s]))
