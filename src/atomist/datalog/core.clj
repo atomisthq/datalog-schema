@@ -5,7 +5,8 @@
    [clojure.edn]
    [clojure.spec.alpha :as s]
    [clojure.string :as string]
-   [rewrite-clj.zip :as z]))
+   [rewrite-clj.zip :as z]
+   [clojure.edn :as edn]))
 
 (s/def ::attributes (s/coll-of keyword?))
 (s/def ::rules (s/coll-of string?))
@@ -36,7 +37,8 @@
           (not (= :keyword form))) {:attributes [form]}
          (and
           (= :map-spec (first (take-last 2 stack)))
-          (keyword? (last stack))) {:attributes [(last stack)]}
+          (and (keyword? (last stack)) \
+               (not (= :pattern (last stack))))) {:attributes [(last stack)]}
          (and
           (= (take-last 2 stack) '(:pattern :attr-name))
           (keyword? form)
@@ -65,6 +67,11 @@
          {}))))
   ([form]
    (report [] form)))
+
+(comment
+  ;; still not working for back references with underscores - need to test :as specs as well
+  (def x (s/conform ::schema/query (edn/read-string (slurp "/Users/slim/atmhq/malware/datalog/subscription/on_push.edn"))))
+  (report x))
 
 (defn current-schema
   "read current-schema.edn from .atomist cache"
