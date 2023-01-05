@@ -169,7 +169,8 @@
 (s/def ::attribute-name keyword?)
 (s/def ::attribute-definition (s/or :entity ::entity-attrs
                                     :definition ::schema-definition
-                                    :enum (s/and map? empty?)))
+                                    :enum (s/keys :opt [:db/doc])))
+(s/def :db/doc string?)
 (s/def ::entity-attrs (s/keys :req [:db.entity/attrs]))
 (s/def :db.entity/attrs (s/and vector? (s/coll-of ::namespaced-keyword)))
 (s/def ::schema-definition (s/keys :req [:db/valueType

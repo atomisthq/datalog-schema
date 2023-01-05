@@ -134,7 +134,7 @@
                         :opt-un [::conformed ::report ::attribute-report ::data]))
 
 (defn check
-  "check datalog edn
+  "check datalog edn and any local schema
     returns ::check"
   [cli-options edn]
   (try
@@ -205,8 +205,8 @@
     (let [edn (clojure.edn/read-string s)
           {:keys [status message] :as checked} (check {} edn)]
       (case status
-        :invalid-schema {:message message
-                         :range (range-all s)}
+        :invalid-schema [{:message message
+                          :range (range-all s)}]
         :valid []
         :invalid (cond
                    ; valid schema but some invalid attributes
