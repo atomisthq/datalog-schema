@@ -75,13 +75,15 @@
 
 (defn current-schema
   "read current-schema.edn from .atomist cache"
-  [cli-options]
+  [{:keys [options]}]
   (try
     (let [schema (-> (babashka.fs/file
                       (str (or
-                            (-> cli-options :options :basedir)
+                            (-> options :basedir)
                             (System/getenv "HOME")))
-                      ".atomist"
+                      ".docker"
+                      "lsp"
+                      (-> options :team-id)
                       "current-schema.edn")
                      (slurp)
                      (clojure.edn/read-string))]
@@ -207,10 +209,12 @@
      :end {:line (dec r2) :character c2}}))
 
 #_:clj-kondo/ignore
-(defn diagnostics [s]
+(defn diagnostics 
+  "  returns vector of lsp Diagnostics"
+  [cli-options s]
   (try
     (let [edn (clojure.edn/read-string s)
-          {:keys [status message] :as checked} (check {} edn)]
+          {:keys [status message] :as checked} (check cli-options edn)]
       (case status
         :invalid-schema [{:message message
                           :range (range-all s)}]
