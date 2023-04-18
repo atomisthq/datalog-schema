@@ -2,11 +2,10 @@
   (:require
    [atomist.datalog.schema :as schema]
    [babashka.fs]
-   [clojure.edn]
+   [clojure.edn :as edn]
    [clojure.spec.alpha :as s]
    [clojure.string :as string]
-   [rewrite-clj.zip :as z]
-   [clojure.edn :as edn]))
+   [rewrite-clj.zip :as z]))
 
 (s/def ::attributes (s/coll-of keyword?))
 (s/def ::rules (s/coll-of string?))
@@ -247,6 +246,6 @@
   (def edn-string-with-metadata (slurp "/Users/slim/atmhq/bb_scripts/datalog/public-images.edn"))
   (def r (z/of-string edn-string-with-metadata {:track-position? true}))
   (check {} (clojure.edn/read-string edn-string-with-metadata))
-  (diagnostics edn-string-with-metadata)
+  (diagnostics {} edn-string-with-metadata)
   (z/node r))
 
