@@ -18,8 +18,8 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-	pkgs-unstable = import nixpkgs-unstable { inherit system; };
-	cljpkgs = clj-nix.packages."${system}";
+        pkgs-unstable = import nixpkgs-unstable { inherit system; };
+        cljpkgs = clj-nix.packages."${system}";
       in
       {
         packages = {
@@ -27,10 +27,19 @@
             projectSrc = ./.;
             name = "docker/datalog-schema";
           };
-	};
+        };
         devShells.default = pkgs.mkShell {
           name = "nixie";
-          packages = with pkgs; [ babashka clojure pkgs.graalvmCEPackages.graalvm17-ce pkgs-unstable.clojure-lsp temurin-bin neovim github-linguist.packages.aarch64-darwin.default ];
+          packages = with pkgs; [
+            babashka
+            clojure
+            pkgs.graalvmCEPackages.graalvm17-ce
+            pkgs-unstable.clojure-lsp
+            temurin-bin
+            neovim
+	    maven
+            github-linguist.packages.aarch64-darwin.default
+          ];
 
           shellHook = ''
             export GRAALVM_HOME=${pkgs.graalvmCEPackages.graalvm17-ce};

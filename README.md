@@ -42,3 +42,13 @@ clj -X:test
 ## Releasing
 
 I've just been using this as a git dep in deps.edn so I haven't created a maven package.  Do we need one?
+
+## Sforzando Release
+
+```
+clj -M:pack
+clj -Spom
+# update version in pom.xml
+# requires $HOME/.m2/settings.xml sforzando
+mvn deploy:deploy-file -Dfile=datalog_schema.jar -DrepositoryId=sforzando -DpomFile=pom.xml -Durl=https://sforzando.jfrog.io/sforzando/libs-release-local
+```

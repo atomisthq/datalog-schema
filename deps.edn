@@ -1,11 +1,14 @@
 {:deps
-  {org.clojure/clojure {:mvn/version "1.11.1"}
-   babashka/process {:mvn/version "0.2.9"}
-   rewrite-clj/rewrite-clj {:mvn/version "1.1.45"}}
+ {org.clojure/clojure {:mvn/version "1.11.1"}
+  babashka/process {:mvn/version "0.2.9"}
+  rewrite-clj/rewrite-clj {:mvn/version "1.1.45"}}
  :aliases
  {:build {:ns-default build
           :deps {io.github.clojure/tools.build {:git/tag "v0.8.3" :git/sha "0d20256c40b5a6b6adbcbdf7d0c52cf9e22e994d"}}}
   :test {:extra-paths ["test"]
          :extra-deps {io.github.cognitect-labs/test-runner {:git/tag "v0.5.1" :git/sha "dfb30dd"}}
          :main-opts ["-m" "cognitect.test-runner"]
-         :exec-fn cognitect.test-runner.api/test}}}
+         :exec-fn cognitect.test-runner.api/test}
+  :pack {:extra-deps {pack/pack.alpha {:git/url "https://github.com/juxt/pack.alpha.git"
+                                       :sha "0e8731e0f24db05b74769e219051b0e92b50624a"}}
+         :main-opts ["-m" "mach.pack.alpha.skinny" "--no-libs" "--project-path" "datalog_schema.jar"]}}}
